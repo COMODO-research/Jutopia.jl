@@ -1,0 +1,12 @@
+name = "Jutopia"
+uuid = "e7a54d2f-252c-429b-97d9-d2681b8d1d92"
+authors = ["chethana-rao <chethanaprao@alumni.iitm.ac.in>"]
+version = "0.1.0"
+
+[deps]
+Comodo = "59095408-2761-4f7a-bdc2-044e78630271"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[compat]
+Comodo = "1.0.1"
+SparseArrays = "1.11.0"
