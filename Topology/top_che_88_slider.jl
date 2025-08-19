@@ -1,11 +1,12 @@
-using LinearAlgebra
+using Comodo
+using Comodo.LinearAlgebra
+using Comodo.GLMakie
 using SparseArrays
 using Statistics
-using GLMakie
 using Profile
+using Printf 
 
-
-#finite element analysis 
+# Finite element analysis 
 function elem_stiff(nu)
   A11 = [12 3 -6 -3;3 12 3 0; -6 3 12 -3; -3 0 -3 12]
   A12 = [-6 -3 0 3;-3 -6 -3 -6; 0 -3 -6 3; 3 -6 3 -6]
@@ -14,6 +15,7 @@ function elem_stiff(nu)
   KE = 1/(1-nu^2)/24*([A11 A12; A12' A11]+ nu*[B11 B12; B12' B11])
   return KE
 end 
+
 function K_map(nelx,nely) 
     grid_view=reshape(collect(1:nelx*nely),nely,nelx)        
     global_node_numbering =reshape(collect(1:(nelx+1)*(nely+1)),nely+1,nelx+1)
@@ -38,7 +40,8 @@ function BC(nelx,nely)
   freedofs = setdiff(alldofs,fixeddofs) 
 return F,U,freedofs
 end 
-##fea solve
+
+## FEA solve
 ##
 function FEA_solve(iK,jK,nelx,nely,penal,xphs,E0,Emin,KE,F,U,freedofs)     
     sK = reshape((KE[:]).*(Emin.+xphs[:]'.^penal.*(E0-Emin)),64*nelx*nely)   
@@ -50,7 +53,8 @@ function FEA_solve(iK,jK,nelx,nely,penal,xphs,E0,Emin,KE,F,U,freedofs)
     U[freedofs] = cholesky(K[freedofs,freedofs])\F[freedofs]  
     return U 
 end
-function fiter_weights(rmin,nelx,nely)
+
+function filter_weights(rmin,nelx,nely)
     iH = ones(nelx*nely*(2*(Int64(ceil(rmin))-1)+1)^2)
     jH = ones(size(iH))
     sH = zeros(size(iH))
@@ -98,80 +102,79 @@ function OC_88(dc,dv,x,volfrac,nelx,nely,ft,H,Hs)
         else 
         l2 =lmid 
       end 
-      condition = (l2-l1)/(l1+l2)
-      
+      condition = (l2-l1)/(l1+l2)      
      
     end
     return xnew,xphs
 end
-function top_opt_88_che(nelx,nely, volfrac, penal,rmin,ft)
-    E0 = 1
+
+function top_opt_88_che(nelx, nely, volfrac, penal, rmin, ft, changeTol)
+    E0 = 1.0
     Emin = 1e-9
     nu = 0.3
-    x=ones(nely,nelx).*volfrac
+    x=fill(volfrac,nely,nelx)
     xphs = x   
-    loop =1
-    change =1
+    loop = 1
+    change = 1.0
     KE = elem_stiff(nu)
     edofmat,iK,jK = K_map(nelx,nely)
     F,U,freedofs = BC(nelx,nely)
-    H, Hs = fiter_weights(rmin, nelx, nely)
-    data=[]
-    while change > 0.01    
+    H, Hs = filter_weights(rmin, nelx, nely)
+    data = Vector{Matrix{Float64}}()
+    push!(data,x) # Add initial    
+    while change > changeTol    
       #fe analysis
-      U = FEA_solve(iK,jK,nelx,nely,penal,xphs,E0,Emin,KE,F,U,freedofs)    
+      U = FEA_solve(iK, jK, nelx, nely, penal, xphs, E0, Emin, KE, F, U, freedofs)    
       ce = reshape(sum(U[edofmat]*KE.*U[edofmat],dims=2),nely,nelx) #equation 2 
       c = sum((Emin.+xphs).^penal*(E0-Emin).*ce) #compliance Objective funciton debug
       dc = -penal*(E0-Emin).*xphs.^(penal-1).*ce #objective function 
       dv = ones(nely,nelx)
-      ##### sensitivity 
-      
+
+      ##### sensitivity       
       if ft == 1
         dc[:] = H*(x[:].*dc[:])./Hs./max.(1e-3,x[:]) #sensitivity
-      elseif ft ==2
+      elseif ft == 2
         dc[:] =  H*(dc[:]./Hs)
         dv[:] = H*(dv[:]./Hs)  
       end
+
       ## optimally criteria update 
       xnew,xphs = OC_88(dc,dv,x,volfrac,nelx,nely,ft,H,Hs)
       change = maximum(abs.(xnew[:].-x[:]))
       x = xnew
       vol=mean(xphs[:])
-      println("Inter = $loop","Change = $change", "Obj: = $c", "Vol = $vol")   
-#      display(heatmap(1 .- xphs, color=:greys, yflip=true))     
-      loop = loop +1
-      push!(data,xphs)
-     
+      println(@sprintf("Iter. = %i, Change = %.6f, Obj.: = %.6f, Vol. = %.3f",loop, change, c, vol))  
+      # display(heatmap(1 .- xphs, color=:greys, yflip=true))     
+      loop += 1
+      push!(data,xphs)     
     end  
-    return xphs,data,loop
+    return xphs, data, loop
 end
+
 function final_figure(data,loop)
     f = Figure(size =(600,200))
-    ax = Axis(f[1,1], aspect = DataAspect(), yreversed = true)
-    hm = heatmap!(ax,1 .- data[1]', colormap=:greys)
+    ax = Axis(f[1,1], aspect = DataAspect(), yreversed=true)
+    hm = heatmap!(ax, data[1]', colormap=:Spectral, colorrange=(0.0,1.0))
     Colorbar(f[:,end+1],hm)
-    slider = Slider(f[2,1], range = 1:loop, startvalue =1)
+    hSlider = Slider(f[2,1], range = 1:loop, startvalue = 1, linewidth=30)
    
-    on(slider.value) do i 
-        hm[1] = 1 .- data[i]'         
+    on(hSlider.value) do i 
+        hm[1] = data[i]'        
     end 
     display(f)
-    
+    slidercontrol(hSlider,ax)
+
     return f 
 end 
-nelx=60
-nely=20
-volfrac=0.5
-penal=3
-ft=1
-rmin=2.4
 
-@time xphs,data,loop = top_opt_88_che(nelx,nely, volfrac, penal,rmin,ft)
+nelx = 60
+nely = 20
+volfrac = 0.5
+penal = 3
+ft = 1
+rmin = 2.4
+changeTol = 1e-2
+@time xphs,data,loop = top_opt_88_che(nelx, nely, volfrac, penal, rmin, ft, changeTol)
 
 f = final_figure(data,loop)
-display(f)
-#heatmap(1 .- xphs, color=:greys, yflip=true)
-
-  
-  
-  
+display(f) 
