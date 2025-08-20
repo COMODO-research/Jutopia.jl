@@ -19,26 +19,26 @@ end
 function K_map(nelx,nely) 
     grid_view=reshape(collect(1:nelx*nely),nely,nelx)        
     global_node_numbering =reshape(collect(1:(nelx+1)*(nely+1)),nely+1,nelx+1)
-    edofmat = zeros(Int64, nelx*nely,8)
+    edofmat = zeros(Int, nelx*nely,8)
     for i in axes(grid_view,2), j in axes(grid_view,1)    
         elm = grid_view[j,i]
         n1= global_node_numbering[j,i]
         n2= global_node_numbering[j,i+1]
         edofmat[elm:elm,:] = [2*n1+1, 2*n1+2, 2*n2+1, 2*n2+2, 2*n2-1, 2*n2, 2*n1-1, 2*n1]
     end
-    iK = reshape(kron(edofmat,ones(8,1))',64*nelx*nely)
-    jK = reshape(kron(edofmat,ones(1,8))',64*nelx*nely)    
+    iK = reshape(kron(edofmat, ones(Int,8,1))', 64*nelx*nely)
+    jK = reshape(kron(edofmat, ones(Int,1,8))', 64*nelx*nely)    
     return edofmat,iK,jK
 end 
 
 function BC(nelx,nely)
-  F=zeros(Float64,2*(nely+1)*(nelx+1),1)
-  U=zeros(Float64,2*(nely+1)*(nelx+1))
+  F = zeros(Float64,2*(nely+1)*(nelx+1),1)
+  U = zeros(Float64,2*(nely+1)*(nelx+1))
   F[2,1] = -1
-  fixeddofs = push!(collect(1:2:2*(nely+1)),  2*(nely+1)*(nelx+1))
-  alldofs= collect(1:2*(nelx+1)*(nely+1))
+  fixeddofs = union(1:2:2*(nely+1),  2*(nely+1)*(nelx+1))
+  alldofs = 1:2*(nelx+1)*(nely+1)
   freedofs = setdiff(alldofs,fixeddofs) 
-return F,U,freedofs
+  return F,U,freedofs
 end 
 
 ## FEA solve
@@ -55,17 +55,18 @@ function FEA_solve(iK,jK,nelx,nely,penal,xphs,E0,Emin,KE,F,U,freedofs)
 end
 
 function filter_weights(rmin,nelx,nely)
-    iH = ones(nelx*nely*(2*(Int64(ceil(rmin))-1)+1)^2)
-    jH = ones(size(iH))
+    d = ceil(Int, rmin)-1
+    iH = ones(Int, nelx*nely*(2*d+1)^2)
+    jH = ones(Int, size(iH))
     sH = zeros(size(iH))
     k = 0
     for i1 = 1:nelx
       for j1 = 1:nely
         e1 = (i1-1)*nely+j1
-        for i2 = max(i1-(Int64(ceil(rmin))-1),1):min(i1+(Int64(ceil(rmin))-1),nelx)
-          for j2 = max(j1-(Int64(ceil(rmin))-1),1):min(j1+(Int64(ceil(rmin))-1),nely)
+        for i2 = max(i1-d,1):min(i1+d,nelx)
+          for j2 = max(j1-d,1):min(j1+d-1,nely)
             e2 = (i2-1)*nely+j2
-            k = k+1
+            k += 1
             iH[k] = e1
             jH[k] = e2
             sH[k] = max(0,rmin-sqrt((i1-i2)^2+(j1-j2)^2)) #Hei = max(0,r_min - \Delta(e,i) (centre to centre dist between ))
@@ -97,7 +98,7 @@ function OC_88(dc,dv,x,volfrac,nelx,nely,ft,H,Hs)
         elseif ft == 2 
          xphs[:] = (H*xnew[:])./Hs    
       end    
-      if sum(xphs[:]) > volfrac*nelx*nely
+      if sum(xphs) > volfrac*nelx*nely
         l1 =lmid
         else 
         l2 =lmid 
@@ -108,14 +109,11 @@ function OC_88(dc,dv,x,volfrac,nelx,nely,ft,H,Hs)
     return xnew,xphs
 end
 
-function top_opt_88_che(nelx, nely, volfrac, penal, rmin, ft, changeTol)
-    E0 = 1.0
-    Emin = 1e-9
-    nu = 0.3
-    x=fill(volfrac,nely,nelx)
+function top_opt_88_che(nelx, nely, volfrac, penal, rmin, ft, changeTol; E0=1.0, nu= 0.3, Emin=1e-9)    
+    x = fill(volfrac,nely,nelx)
     xphs = x   
     loop = 1
-    change = 1.0
+    change = 10.0*changeTol
     KE = elem_stiff(nu)
     edofmat,iK,jK = K_map(nelx,nely)
     F,U,freedofs = BC(nelx,nely)
@@ -127,12 +125,12 @@ function top_opt_88_che(nelx, nely, volfrac, penal, rmin, ft, changeTol)
       U = FEA_solve(iK, jK, nelx, nely, penal, xphs, E0, Emin, KE, F, U, freedofs)    
       ce = reshape(sum(U[edofmat]*KE.*U[edofmat],dims=2),nely,nelx) #equation 2 
       c = sum((Emin.+xphs).^penal*(E0-Emin).*ce) #compliance Objective funciton debug
-      dc = -penal*(E0-Emin).*xphs.^(penal-1).*ce #objective function 
+      dc = -penal*(E0-Emin).*xphs.^(penal-1.0).*ce #objective function 
       dv = ones(nely,nelx)
 
-      ##### sensitivity       
+      # Filtering and modification of sensitivities
       if ft == 1
-        dc[:] = H*(x[:].*dc[:])./Hs./max.(1e-3,x[:]) #sensitivity
+        dc[:] = H * (x[:].*dc[:]) ./ Hs ./ max.(1e-3, x[:]) #sensitivity
       elseif ft == 2
         dc[:] =  H*(dc[:]./Hs)
         dv[:] = H*(dv[:]./Hs)  
@@ -140,10 +138,10 @@ function top_opt_88_che(nelx, nely, volfrac, penal, rmin, ft, changeTol)
 
       ## optimally criteria update 
       xnew,xphs = OC_88(dc,dv,x,volfrac,nelx,nely,ft,H,Hs)
-      change = maximum(abs.(xnew[:].-x[:]))
+      change = maximum(abs.(xnew.-x))
       x = xnew
-      vol=mean(xphs[:])
-      println(@sprintf("Iter. = %i, Change = %.6f, Obj.: = %.6f, Vol. = %.3f",loop, change, c, vol))  
+      vol = mean(xphs)
+      println(@sprintf("Iter. = %i, Change = %.6f, Obj.: = %.6f, Vol. = %.3f", loop, change, c, vol))  
       # display(heatmap(1 .- xphs, color=:greys, yflip=true))     
       loop += 1
       push!(data,xphs)     
