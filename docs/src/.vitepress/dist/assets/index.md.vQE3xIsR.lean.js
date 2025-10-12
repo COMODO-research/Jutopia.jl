@@ -1,0 +1,1 @@
+import{_ as a,c as t,o as s,ae as o}from"./chunks/framework.CBTkueSR.js";const h=JSON.parse('{"title":"ComodoFerrite","description":"","frontmatter":{},"headers":[],"relativePath":"index.md","filePath":"index.md"}'),i={name:"index.md"};function n(p,e,d,r,c,l){return s(),t("div",null,[...e[0]||(e[0]=[o("",5)])])}const m=a(i,[["render",n]]);export{h as __pageData,m as default};

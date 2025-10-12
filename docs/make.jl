@@ -9,7 +9,15 @@ makedocs(
     sitename = "Jutopia.jl",
     modules = [Jutopia],
     pages = [
-        "Home" => "index.md",
+        "Home" =>[
+            "index.md"
+            ],
+        "Tutorials"  =>[
+        "tutorials/getting-started.md"
+        ],
+        "Examples"  =>[
+
+        ]
     ]
 )
 

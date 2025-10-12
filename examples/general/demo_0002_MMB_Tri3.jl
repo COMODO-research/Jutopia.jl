@@ -69,8 +69,9 @@ scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon, strokecolor=
 nodeset3 = get_boundary_points(grid, getnodeset(grid, "support_2"), Nodes, Ferrite.Triangle)
 scatter!(ax, nodeset3, color=:green, markersize=15.0, marker=:diamond, strokecolor=:black, strokewidth=2, label="Fixed Y")
 
-display(GLMakie.Screen(), fig)
+
 axislegend(ax, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)
+display(GLMakie.Screen(), fig)
 
 input["grid"] = grid
 input["dh"] = create_dofhandler(grid)
