@@ -102,7 +102,7 @@ function compliance_and_sensitivity(::Type{twoD},ρ, dh, u, cell_values, penalty
 
         eldofs = celldofs(cell)
         ue = u[eldofs]        
-        C += 0.5 * ρ_local^penalty * ue' * ke * ue
+        C +=  ρ_local^penalty * ue' * ke * ue
         dC_dρ[cell_index] = -penalty * ρ_local^(penalty - 1) * ue' * ke * ue
     end
     return C, dC_dρ
@@ -322,7 +322,7 @@ computes and returns the updated density
 """
 function update_density(x, volfrac, dc, element_volumes)
     l1 = 0.0
-    l2 = 100_000.0
+    l2 = 100000
     move = 0.2
     
     total_volume = sum(element_volumes)
@@ -444,7 +444,6 @@ end
 function run_optimization(::Type{twoD}, ::Type{Nodal}, input::Dict)
 
     ##### Parameters
-    ρ = input["ρ"]
     grid = input["grid"]
     n = getncells(grid)
     rmin = input["rmin"]
@@ -454,35 +453,41 @@ function run_optimization(::Type{twoD}, ::Type{Nodal}, input::Dict)
     dh = input["dh"]
     cell_values = input["cell_values"]
     ####################
+    
     loop = 0
     change = 1.0
-    # Precompute filter
     neighbors, weights = create_optimized_sensitivity_filter(grid, n, rmin)
 
-    ρ_cells =  Vector{Vector{Float64}}() 
-    ρ_nodes =  Vector{Vector{Float64}}() 
+    ρ_cells = Vector{Vector{Float64}}() 
+    ρ_nodes = Vector{Vector{Float64}}() 
 
-    while change >tol  && loop < max_iter
+    # Start with the initial density from input
+    ρ = input["ρ"]
 
+    while change > tol && loop < max_iter
         ρ_node = compute_nodal_data(grid, ρ)
-        push!(ρ_cells, ρ)
+        push!(ρ_cells, copy(ρ))
         push!(ρ_nodes, ρ_node)
         loop += 1
-        C, dC_dρ,  = run_fem(twoD, Nodal, input)
+        
+        input["ρ"] = copy(ρ)  # 
+        
+        C, dC_dρ = run_fem(twoD, Nodal, input)
+        
         dc_filtered = apply_sensitivity_filter(dC_dρ, ρ, neighbors, weights, n)
         element_volumes = calculate_all_cell_volumes(grid, dh, cell_values)
         ρnew = update_density(ρ, volfrac, dc_filtered, element_volumes)
         change = maximum(abs.(ρnew - ρ))
-        ρ = copy(ρnew)  # Update for next iteration
+        ρ = copy(ρnew)  # Update local variable for next iteration
         println("Iteration $loop, Compliance: $C, Change: $change")
+        println("----------------------------------------")
     end 
     return top(ρ_cells, ρ_nodes)
-end 
+end
 ######################################################
 function run_optimization(::Type{twoD}, ::Type{Traction}, input::Dict)
 
     ##### Parameters
-    ρ = input["ρ"]
     grid = input["grid"]
     n = getncells(grid)
     rmin = input["rmin"]
@@ -492,27 +497,34 @@ function run_optimization(::Type{twoD}, ::Type{Traction}, input::Dict)
     dh = input["dh"]
     cell_values = input["cell_values"]
     ####################
+    
     loop = 0
     change = 1.0
-    # Precompute filter
     neighbors, weights = create_optimized_sensitivity_filter(grid, n, rmin)
 
-    ρ_cells =  Vector{Vector{Float64}}() 
-    ρ_nodes =  Vector{Vector{Float64}}() 
+    ρ_cells = Vector{Vector{Float64}}() 
+    ρ_nodes = Vector{Vector{Float64}}() 
 
-    while change >tol  && loop < max_iter
+    # Start with the initial density from input
+    ρ = input["ρ"]
 
+    while change > tol && loop < max_iter
         ρ_node = compute_nodal_data(grid, ρ)
-        push!(ρ_cells, ρ)
+        push!(ρ_cells, copy(ρ))
         push!(ρ_nodes, ρ_node)
         loop += 1
-        C, dC_dρ,  = run_fem(twoD, Traction, input)
+        
+        input["ρ"] = copy(ρ)  # Update input with current density
+        
+        C, dC_dρ = run_fem(twoD, Traction, input)
+        
         dc_filtered = apply_sensitivity_filter(dC_dρ, ρ, neighbors, weights, n)
         element_volumes = calculate_all_cell_volumes(grid, dh, cell_values)
         ρnew = update_density(ρ, volfrac, dc_filtered, element_volumes)
         change = maximum(abs.(ρnew - ρ))
-        ρ = copy(ρnew)  # Update for next iteration
+        ρ = copy(ρnew)  # Update local variable for next iteration
         println("Iteration $loop, Compliance: $C, Change: $change")
+        println("----------------------------------------")
     end 
     return top(ρ_cells, ρ_nodes)
-end 
+end

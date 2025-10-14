@@ -5,6 +5,7 @@ using Comodo.GLMakie
 using Comodo.GLMakie.Colors
 using Comodo.GeometryBasics
 using Comodo
+#### tested and verified with MATLAB code
 ## GLMakie setting 
 GLMakie.closeall()
 
@@ -49,7 +50,7 @@ end
 
 ####### 
 Lx, Ly = 2.0, 1.0  # Plate dimensions
-nx, ny = 120, 60   # Number of elements along x and y
+nx, ny = 30, 30   # Number of elements along x and y
 grid = create_grid(Lx, Ly, nx, ny)  # Generate the grid
 F, V = FerriteToComodo(grid, Ferrite.Quadrilateral)
 
@@ -81,11 +82,8 @@ input["cell_values"], _ = create_values()
 input["volfrac"] = 0.5
 input["penalty"] = 3.0
 
-hx = Lx / nx
-hy = Ly / ny
-h_avg = (hx + hy) / 2
 
-input["rmin"] = 1.5 * h_avg
+input["rmin"] = 0.1 * min(Lx, Ly)
 
 input["load_vector"] = (0.0, -1.0)
 input["nodeid"] = getnodeset(grid, "nodal_force")
@@ -98,3 +96,5 @@ top = run_optimization(twoD, Nodal, input)
 
 ρ_cells = top.ρ_cells
 ρ_nodes = top.ρ_nodes  # List of nodal density fields for each timestep
+
+nothing

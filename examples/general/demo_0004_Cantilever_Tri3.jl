@@ -45,7 +45,7 @@ function create_bc(dh)
     return ch
 end
 Lx, Ly = 2.0, 1.0  # Plate dimensions
-nx, ny = 120, 60   # Number of elements along x and y
+nx, ny = 30, 30   # Number of elements along x and y
 grid = create_grid(Lx, Ly, nx, ny)  # Generate the grid
 F, V = FerriteToComodo(grid, Ferrite.Triangle)
 
@@ -75,11 +75,10 @@ input["cell_values"], input["facet_values"] = create_values()
 input["volfrac"] = 0.5
 input["penalty"] = 3.0
 
-hx = Lx / nx
-hy = Ly / ny
-h_avg = (hx + hy) / 2
 
-input["rmin"] = 1.5 * h_avg
+
+input["rmin"] = 0.1 * min(Lx, Ly)
+
 input["prescribed_traction"] = (0.0, -1.0)
 input["facetset"] = getfacetset(grid, "traction")
 input["ρ"] = fill(0.5, getncells(grid))
