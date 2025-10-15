@@ -9,7 +9,6 @@ using Comodo
 GLMakie.closeall()
 
 # Create empty dict
-input = Dict()
 function create_grid(Lx, Ly, nx, ny)
     corners = [
         Ferrite.Vec{2}((0.0, 0.0)), Ferrite.Vec{2}((Lx, 0.0)),
@@ -73,27 +72,24 @@ scatter!(ax, nodeset3, color=:green, markersize=15.0, marker=:diamond, strokecol
 axislegend(ax, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)
 display(GLMakie.Screen(), fig)
 
-input["grid"] = grid
-input["dh"] = create_dofhandler(grid)
-input["ch"] = create_bc(input["dh"])
+dh = create_dofhandler(grid)
+ch = create_bc(dh)
 
-input["cell_values"], _ = create_values()
+cv, _ = create_values() # cv: cell_values
 
-input["volfrac"] = 0.5
-input["penalty"] = 3.0
+volfrac = 0.5
+penalty = 3.0
 
+rmin = 0.1 * min(Lx, Ly)
 
-
-input["rmin"] = 0.1 * min(Lx, Ly)
-
-input["load_vector"] = (0.0, -1.0)
-input["nodeid"] = getnodeset(grid, "nodal_force")
-input["ρ"] = fill(0.5, getncells(grid))
-input["max_iter"] = 1000
-input["tol"] = 0.01
+load_vector = (0.0, -1.0)
+nodeid = getnodeset(grid, "nodal_force")
+ρ = fill(0.5, getncells(grid))
+max_iter = 1000
+tol = 0.01
 
 # === Run optimization and extract densities ===
-top = run_optimization(twoD, Nodal, input)
+top = run_optimization(twoD, Nodal, grid, dh, ch , cv, ρ, penalty, nodeid, load_vector, volfrac, rmin, tol, max_iter)
 
 ρ_cells = top.ρ_cells
 ρ_nodes = top.ρ_nodes  # List of nodal density fields for each timestep

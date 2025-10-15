@@ -45,7 +45,7 @@ function create_bc(dh)
     return ch
 end
 Lx, Ly = 2.0, 1.0  # Plate dimensions
-nx, ny = 30, 30   # Number of elements along x and y
+nx, ny = 120, 60   # Number of elements along x and y
 grid = create_grid(Lx, Ly, nx, ny)  # Generate the grid
 F, V = FerriteToComodo(grid, Ferrite.Triangle)
 
@@ -66,27 +66,26 @@ scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon, strokecolor=
 axislegend(ax, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)
 display(GLMakie.Screen(), fig)
 
-input["grid"] = grid
-input["dh"] = create_dofhandler(grid)
-input["ch"] = create_bc(input["dh"])
+grid = grid
+dh = create_dofhandler(grid)
+ch = create_bc(dh)
 
-input["cell_values"], input["facet_values"] = create_values()
+cv, fv = create_values()
 
-input["volfrac"] = 0.5
-input["penalty"] = 3.0
+volfrac = 0.5
+penalty = 3.0
+rmin = 0.1 * min(Lx, Ly)
 
-
-
-input["rmin"] = 0.1 * min(Lx, Ly)
-
-input["prescribed_traction"] = (0.0, -1.0)
-input["facetset"] = getfacetset(grid, "traction")
-input["ρ"] = fill(0.5, getncells(grid))
-input["max_iter"] = 1000
-input["tol"] = 0.01
+traction = (0.0, -1.0)
+facetset = getfacetset(grid, "traction")
+ρ = fill(0.5, getncells(grid))
+max_iter = 1000
+tol = 0.01
 
 # === Run optimization and extract densities ===
-top = run_optimization(twoD, Traction, input)
+top = run_optimization(twoD, Traction, grid, dh, ch , cv, fv, ρ, penalty,  facetset, traction, volfrac, rmin, tol, max_iter )
 
 ρ_cells = top.ρ_cells
 ρ_nodes = top.ρ_nodes  # List of nodal density fields for each timestep
+
+nothing

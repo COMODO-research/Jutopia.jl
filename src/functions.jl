@@ -8,7 +8,8 @@ struct Nodal end
 computes and returns the material stiffness matrix for 2D plane stress linear elasticity
 """
 function get_material_matrix(::Type{twoD})
-    E, ν = 1.0, 0.3
+    E = 1.0
+    ν = 0.3
     C_voigt = E * [1.0 ν 0.0; ν 1.0 0.0; 0.0 0.0 (1-ν)/2] / (1 - ν^2)
     return fromvoigt(SymmetricTensor{4,2}, C_voigt)
 end
@@ -58,7 +59,7 @@ end
 
 computes and returns the global external forces for 2D plane stress linear elasticity (traction)
 """
-function assemble_external_forces!(::Type{twoD}, f_ext, dh, facetset, facetvalues, prescribed_traction)
+function assemble_external_forces!(f_ext, dh, facetset, facetvalues, prescribed_traction)
     # Create a temporary array for the facet's local contributions to the external force vector
     fe_ext = zeros(getnbasefunctions(facetvalues))
     for facet in FacetIterator(dh, facetset)
@@ -68,7 +69,6 @@ function assemble_external_forces!(::Type{twoD}, f_ext, dh, facetset, facetvalue
         fill!(fe_ext, 0.0)
         # Access the cell's coordinates
         for qp in 1:getnquadpoints(facetvalues)
-            # Calculate the global coordinate of the quadrature point.
             # Get the integration weight for the current quadrature point.
             dΓ = getdetJdV(facetvalues, qp)
             for i in 1:getnbasefunctions(facetvalues)
@@ -81,7 +81,7 @@ function assemble_external_forces!(::Type{twoD}, f_ext, dh, facetset, facetvalue
     end
     return f_ext
 end
-######################################################
+#####################################################
 """
     compliance_and_sensitivity(twoD, ρ, dh, u, cell_values, penalty)
 
@@ -96,9 +96,8 @@ function compliance_and_sensitivity(::Type{twoD},ρ, dh, u, cell_values, penalty
     for (cell_index, (cell)) in enumerate(CellIterator(dh))
         reinit!(cell_values, cell)
         fill!(ke, 0.0)
-
         ρ_local = ρ[cell_index]
-        assemble_cell!(twoD,ke, cell_values, ρ_local, 0.0)  # K₀ only!
+        assemble_cell!(twoD, ke, cell_values, ρ_local, 0.0)  # K₀ only!
 
         eldofs = celldofs(cell)
         ue = u[eldofs]        
@@ -209,6 +208,7 @@ function apply_nodal_force!(::Type{twoD}, grid, nodeid, load_vector, f, dh)
     end
     return f
 end
+
 ######################################################
 """
    get_centroid(grid, cell_idx)
@@ -374,31 +374,20 @@ end
 
 finite element solver for 2D plane stress linear elasticity with Traction
 """
-function run_fem(::Type{twoD}, ::Type{Traction}, input::Dict)
-
-    ρ = input["ρ"]
-    
-    penalty = input["penalty"]
-    prescribed_traction = input["prescribed_traction"]
-    
-    dh = input["dh"]
-    ch = input["ch"]
-    # # Create CellValues and FacetValues
-    cell_values, facet_values = input["cell_values"], input["facet_values"]
+function run_fem(::Type{twoD}, ::Type{Traction}, grid,  dh, ch , cell_values, facet_values, ρ, penalty,  facetset, traction )
 
     K = allocate_matrix(dh)
     K = assemble_global!(twoD, K, dh, cell_values, ρ, penalty)
 
     f_ext = zeros(ndofs(dh))
-    facetset = input["facetset"]
-    f_ext = assemble_external_forces!(twoD, f_ext, dh, facetset, facet_values, prescribed_traction)
+    f_ext = assemble_external_forces!(f_ext, dh, facetset, facet_values, traction)
     apply!(K, f_ext, ch)
 
     ## Solve linear system
     u = K \ f_ext
 
-    C, dC_dρ  = compliance_and_sensitivity(twoD, ρ, dh, u, cell_values, penalty)    
-    return C, dC_dρ
+    C, dC_dρ = compliance_and_sensitivity(twoD, ρ, dh, u, cell_values, penalty)
+    return C, dC_dρ, u
 end
 ######################################################
 """
@@ -406,30 +395,19 @@ end
 
 finite element solver for 2D plane stress linear elasticity with Nodal force
 """
-function run_fem(::Type{twoD}, ::Type{Nodal}, input::Dict)
-
-    ρ = input["ρ"]
-    grid = input["grid"]
-    penalty = input["penalty"]
-    load_vector = input["load_vector"]
-    
-    dh = input["dh"]
-    ch = input["ch"]
-    # # Create CellValues and FacetValues
-    cell_values = input["cell_values"]
+function run_fem(::Type{twoD}, ::Type{Nodal}, grid,  dh, ch , cell_values, ρ, penalty, nodeid,  load_vector)
 
     K = allocate_matrix(dh)
     K = assemble_global!(twoD, K, dh, cell_values, ρ, penalty)
 
     f_ext = zeros(ndofs(dh))
-    nodeid = input["nodeid"]
     f_ext = apply_nodal_force!(twoD, grid, nodeid, load_vector, f_ext, dh)
     apply!(K, f_ext, ch)
 
     ## Solve linear system
     u = K \ f_ext
     C, dC_dρ  = compliance_and_sensitivity(twoD, ρ, dh, u, cell_values, penalty)    
-    return C, dC_dρ
+    return C, dC_dρ, u
 end
 ######################################################
 struct top
@@ -441,19 +419,9 @@ end
     run_optimization(twoD, Nodal, input)
 
 """
-function run_optimization(::Type{twoD}, ::Type{Nodal}, input::Dict)
-
-    ##### Parameters
-    grid = input["grid"]
+function run_optimization(::Type{twoD}, ::Type{Nodal}, grid, dh, ch , cell_values, ρ, penalty, nodeid, load_vector, volfrac, rmin, tol, max_iter)    
     n = getncells(grid)
-    rmin = input["rmin"]
-    max_iter = input["max_iter"]
-    tol = input["tol"]
-    volfrac = input["volfrac"]
-    dh = input["dh"]
-    cell_values = input["cell_values"]
     ####################
-    
     loop = 0
     change = 1.0
     neighbors, weights = create_optimized_sensitivity_filter(grid, n, rmin)
@@ -462,42 +430,37 @@ function run_optimization(::Type{twoD}, ::Type{Nodal}, input::Dict)
     ρ_nodes = Vector{Vector{Float64}}() 
 
     # Start with the initial density from input
-    ρ = input["ρ"]
 
     while change > tol && loop < max_iter
         ρ_node = compute_nodal_data(grid, ρ)
         push!(ρ_cells, copy(ρ))
         push!(ρ_nodes, ρ_node)
+
         loop += 1
-        
-        input["ρ"] = copy(ρ)  # 
-        
-        C, dC_dρ = run_fem(twoD, Nodal, input)
+            
+        C, dC_dρ, u  = run_fem(twoD, Nodal, grid,  dh, ch , cell_values, ρ, penalty, nodeid,  load_vector)
         
         dc_filtered = apply_sensitivity_filter(dC_dρ, ρ, neighbors, weights, n)
+
         element_volumes = calculate_all_cell_volumes(grid, dh, cell_values)
+
         ρnew = update_density(ρ, volfrac, dc_filtered, element_volumes)
+
         change = maximum(abs.(ρnew - ρ))
+
         ρ = copy(ρnew)  # Update local variable for next iteration
+
         println("Iteration $loop, Compliance: $C, Change: $change")
         println("----------------------------------------")
     end 
     return top(ρ_cells, ρ_nodes)
 end
 ######################################################
-function run_optimization(::Type{twoD}, ::Type{Traction}, input::Dict)
+function run_optimization(::Type{twoD}, ::Type{Traction}, grid, dh, ch , cell_values, facet_values, ρ, penalty,  facetset, traction, volfrac, rmin, tol, max_iter )
 
     ##### Parameters
-    grid = input["grid"]
     n = getncells(grid)
-    rmin = input["rmin"]
-    max_iter = input["max_iter"]
-    tol = input["tol"]
-    volfrac = input["volfrac"]
-    dh = input["dh"]
-    cell_values = input["cell_values"]
     ####################
-    
     loop = 0
     change = 1.0
     neighbors, weights = create_optimized_sensitivity_filter(grid, n, rmin)
@@ -505,8 +468,7 @@ function run_optimization(::Type{twoD}, ::Type{Traction}, input::Dict)
     ρ_cells = Vector{Vector{Float64}}() 
     ρ_nodes = Vector{Vector{Float64}}() 
 
-    # Start with the initial density from input
-    ρ = input["ρ"]
+   
 
     while change > tol && loop < max_iter
         ρ_node = compute_nodal_data(grid, ρ)
@@ -514,9 +476,7 @@ function run_optimization(::Type{twoD}, ::Type{Traction}, input::Dict)
         push!(ρ_nodes, ρ_node)
         loop += 1
         
-        input["ρ"] = copy(ρ)  # Update input with current density
-        
-        C, dC_dρ = run_fem(twoD, Traction, input)
+        C, dC_dρ, u = run_fem(twoD, Traction, grid ,  dh, ch , cell_values, facet_values, ρ, penalty,  facetset, traction)
         
         dc_filtered = apply_sensitivity_filter(dC_dρ, ρ, neighbors, weights, n)
         element_volumes = calculate_all_cell_volumes(grid, dh, cell_values)
