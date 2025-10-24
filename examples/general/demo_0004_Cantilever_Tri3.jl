@@ -88,4 +88,33 @@ top = run_optimization(twoD, Traction, grid, dh, ch , cv, fv, ρ, penalty,  face
 ρ_cells = top.ρ_cells
 ρ_nodes = top.ρ_nodes  # List of nodal density fields for each timestep
 
-nothing
+function final_figure(data, loop, nx, ny, Lx, Ly)
+    f = Figure(size = (600, 600))
+    ax = Axis(f[1,1], aspect = Lx/Ly)
+    
+
+    x = range(0, Lx, length = nx + 1)
+    y = range(Ly, 0, length = ny + 1)  
+    
+    data_obs = Observable(reverse(reshape(data[1], nx, ny); dims=2))
+    hm = heatmap!(ax, x, y, data_obs, colormap=Reverse(:grays), colorrange=(0.0,1.0))
+    Colorbar(f[1,2], hm)
+    hSlider = Slider(f[2,1], range = 1:loop, startvalue = 1, linewidth=30)
+   
+    on(hSlider.value) do i 
+        data_obs[] = reverse(reshape(data[i], nx, ny); dims=2)
+        ax.title = "Step: $i"
+    end 
+    display(f)
+    return f 
+end
+
+# loop = length(ρ_cells)
+# f = final_figure(ρ_cells, loop, nx, ny, Lx, Ly)
+
+# For node data
+loop_nodes = length(ρ_nodes)
+nx_nodes = nx + 1  
+ny_nodes = ny + 1
+
+f_nodes = final_figure(ρ_nodes, loop_nodes, nx_nodes, ny_nodes, Lx, Ly)
