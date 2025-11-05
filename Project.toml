@@ -4,12 +4,16 @@ version = "0.1.0"
 authors = ["chethana-rao <chethanaprao@alumni.iitm.ac.in>"]
 
 [deps]
+DotMaps = "98454f44-f182-4945-8d34-ddde53e72162"
+FIGlet = "3064a664-84fe-4d92-92c7-ed492f3d8fae"
 Ferrite = "c061ca5d-56c9-439f-9c0e-210fe06d3992"
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
+DotMaps = "0.1.2"
+FIGlet = "0.2.2"
 Ferrite = "1.1.0"
 NearestNeighbors = "0.4.22"
 Printf = "1.11.0"

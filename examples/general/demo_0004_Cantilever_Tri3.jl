@@ -5,12 +5,12 @@ using Comodo.GLMakie
 using Comodo.GLMakie.Colors
 using Comodo.GeometryBasics
 using Comodo
-
+using DotMaps
+#### tested and verified with MATLAB code
+dict = Dict()
+input = DotMap(dict)
 ## GLMakie setting 
 GLMakie.closeall()
-
-# Create empty dict
-input = Dict()
 
 function create_grid(Lx, Ly, nx, ny)
     corners = [
@@ -66,55 +66,73 @@ scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon, strokecolor=
 axislegend(ax, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)
 display(GLMakie.Screen(), fig)
 
-grid = grid
-dh = create_dofhandler(grid)
-ch = create_bc(dh)
+input.grid  = grid
+input.dh = create_dofhandler(grid)
+input.ch = create_bc(input.dh)
 
-cv, fv = create_values()
+input.cv, input.fv = create_values()
 
-volfrac = 0.5
-penalty = 3.0
-rmin = 0.1 * min(Lx, Ly)
+input.volfrac = 0.5
+input.penalty = 3.0
 
-traction = (0.0, -1.0)
-facetset = getfacetset(grid, "traction")
-ρ = fill(0.5, getncells(grid))
-max_iter = 1000
-tol = 0.01
+input.rmin = 0.06
 
-# === Run optimization and extract densities ===
-top = run_optimization(twoD, Traction, grid, dh, ch , cv, fv, ρ, penalty,  facetset, traction, volfrac, rmin, tol, max_iter )
+input.traction_vector = (0.0, -1.0)
+input.facetset = getfacetset(grid, "traction")
+input.max_iter = 300
+input.tol = 0.01
+input.ν= 0.3
+input.Emin = 1e-9
+input.E0 = 1.0
 
-ρ_cells = top.ρ_cells
-ρ_nodes = top.ρ_nodes  # List of nodal density fields for each timestep
+input.filter_type = :sensitivity_filter
+input.model_type = :dim2d
+input.load_type=:traction 
+ρ_cells = run_optimization(input)
 
-function final_figure(data, loop, nx, ny, Lx, Ly)
-    f = Figure(size = (600, 600))
-    ax = Axis(f[1,1], aspect = Lx/Ly)
+
+function final_figure(F, V, ρ_cells; plot_type=:elements, colormap = :Spectral, strokewidth=0.0, strokecolor=:black)           
+    V = [Point{3,Float64}(v[1], v[2], 0.0) for v in V]
+    C_F = ρ_cells[1]
+
+    if plot_type == :elements 
+        CF = FaceView(C_F, eltype(F).(eachindex(F)))
+        NF = FaceView(facenormal(F,V), eltype(F).(eachindex(F)))
+        M = GeometryBasics.Mesh(V, F, normal=NF, color=CF)
+    elseif plot_type == :nodes
+        CV = simplex2vertexdata(F, C_F,  V; weighting=:size)
+    end
+
+    f = Figure(size = (800, 600))
+    ax1 = Axis(f[1,1], aspect= DataAspect())        
+    if plot_type == :elements
+        hm1 = meshplot!(ax1, M; strokewidth=strokewidth, strokecolor=strokecolor, colormap=colormap, colorrange=(0.0, 1.0))
+    elseif plot_type == :nodes    
+        hm1 = meshplot!(ax1, F, V; strokewidth=strokewidth, strokecolor=strokecolor, color=CV, colormap=colormap, colorrange=(0.0, 1.0))
+    end
+    Colorbar(f[1,2], hm1)    
     
-
-    x = range(0, Lx, length = nx + 1)
-    y = range(Ly, 0, length = ny + 1)  
-    
-    data_obs = Observable(reverse(reshape(data[1], nx, ny); dims=2))
-    hm = heatmap!(ax, x, y, data_obs, colormap=Reverse(:grays), colorrange=(0.0,1.0))
-    Colorbar(f[1,2], hm)
-    hSlider = Slider(f[2,1], range = 1:loop, startvalue = 1, linewidth=30)
+    hSlider = Slider(f[2,:], range = 1:length(ρ_cells), startvalue = 1, linewidth=30)
    
-    on(hSlider.value) do i 
-        data_obs[] = reverse(reshape(data[i], nx, ny); dims=2)
-        ax.title = "Step: $i"
+    on(hSlider.value) do i   
+        C_F = ρ_cells[i]
+        if plot_type == :elements                          
+            CF = FaceView(C_F, eltype(F).(eachindex(F)))
+            M = GeometryBasics.Mesh(V, F, normal=NF, color=CF)
+            hm1[1] = M
+            ax1.title = "Iteration: $i"
+        elseif plot_type == :nodes  
+            CV = simplex2vertexdata(F, C_F,  V; weighting=:size)
+            hm1.color = CV
+            ax1.title = "Iteration: $i"
+        end
     end 
     display(f)
     return f 
 end
 
-# loop = length(ρ_cells)
-# f = final_figure(ρ_cells, loop, nx, ny, Lx, Ly)
 
-# For node data
-loop_nodes = length(ρ_nodes)
-nx_nodes = nx + 1  
-ny_nodes = ny + 1
+f_nodes = final_figure(F, V, ρ_cells; plot_type=:elements, colormap = (:turbo), strokewidth=0.0, strokecolor=:black)          
 
-f_nodes = final_figure(ρ_nodes, loop_nodes, nx_nodes, ny_nodes, Lx, Ly)
+
+
