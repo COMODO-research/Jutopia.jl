@@ -58,8 +58,8 @@ end;
 
 # Main script
 Lx, Ly, Lz = 30.0, 2.0, 10.0
-nx, ny, nz = 40, 5, 10
-
+# nx, ny, nz = 40, 5, 10
+nx, ny, nz = 50, 10, 20
 
 grid = create_grid(Lx, Ly, Lz, nx, ny, nz)
 F, V = FerriteToComodo(grid, Ferrite.Hexahedron)

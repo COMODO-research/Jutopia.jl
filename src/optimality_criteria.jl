@@ -1,4 +1,6 @@
 function optimality_criteria(x, volfrac, dc, dv, element_volumes, filter_type, neighbors, weights, n)
+
+    # optimality_criteria(x, volfrac, dc, dv, element_volumes, filter_type, neighbors, weights, n)
     l1 = 0.0
     l2 = 1e9
     move = 0.2
@@ -15,7 +17,8 @@ function optimality_criteria(x, volfrac, dc, dv, element_volumes, filter_type, n
         if filter_type == :sensitivity_filter
             xPhys = xnew
         elseif filter_type == :density_filter
-            xPhys = rho_filter(xnew, neighbors, weights, n)
+            #xPhys = rho_filter(xnew, neighbors, weights, n)
+            xPhys = density_filter(n, xnew , element_volumes, neighbors, weights)
         else
             error("the filter type $filter_type is incorrect")
         end

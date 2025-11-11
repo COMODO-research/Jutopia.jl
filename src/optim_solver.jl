@@ -1,10 +1,6 @@
 function run_optimization(input::DotMap)
     #-------------------------------
     # input parameters
-
-
-
-
     grid = input.grid
     dh = input.dh
     ch = input.ch
@@ -31,14 +27,17 @@ function run_optimization(input::DotMap)
 
 
     n = getncells(grid)
-    neighbors, weights = create_optimized_sensitivity_filter(grid, n, rmin)
+    #neighbors, weights = create_optimized_sensitivity_filter(grid, n, rmin)
+    centroid_data = get_all_element_centroids(grid, dh)
+    neighbors, weights = create_neighbor_data(centroid_data, rmin)
     element_volumes = calculate_all_cell_volumes(grid, dh, cv)
+    
     
     ####################
     loop = 0
     change = 1.0
 
-
+   
     xPhys_cells = Vector{Vector{Float64}}()
 
     x = fill(volfrac, getncells(grid))
@@ -68,13 +67,17 @@ function run_optimization(input::DotMap)
         
         ## FILTERING/MODIFICATION OF SENSITIVITIES
         if filter_type == :sensitivity_filter
-            dc = sensitivity_filter(dc, x, neighbors, weights, n)
+            #dc = sensitivity_filter(dc, x, neighbors, weights, n)
+            dc = sensitivity_filter(n, x, dc,element_volumes, neighbors,weights)
         elseif filter_type == :density_filter
-            dc, dv = sensitivity_filter_chainrule(dc, dv, neighbors, weights, n)
+            #dc, dv = sensitivity_filter_chainrule(dc, dv, neighbors, weights, n)
+            dc = calculate_all_filtered_compliance_sensitivities(n, element_volumes, dc ,neighbors,weights)
+            dv = calculate_all_volume_constraint_sensitivities(n, element_volumes,neighbors,weights)
         else
             error("the filter type $filter_type is incorrect")
         end
 
+        # xnew, xPhys = optimality_criteria(x, volfrac, dc, dv, element_volumes, filter_type, neighbors, weights, n)
         xnew, xPhys = optimality_criteria(x, volfrac, dc, dv, element_volumes, filter_type, neighbors, weights, n)
 
         change = maximum(abs.(xnew - x))

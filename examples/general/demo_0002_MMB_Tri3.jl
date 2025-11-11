@@ -52,7 +52,7 @@ end
 
 ####### 
 Lx, Ly = 2.0, 1.0  # Plate dimensions
-nx, ny = 80, 40   # Number of elements along x and y
+nx, ny = 120, 60   # Number of elements along x and y
 grid = create_grid(Lx, Ly, nx, ny)  # Generate the grid
 F, V = FerriteToComodo(grid, Ferrite.Triangle)
 

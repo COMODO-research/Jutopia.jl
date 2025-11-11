@@ -88,13 +88,13 @@ input.penalty = 3.0
 input.rmin = 0.1
 input.nodal_vector =  (0.0, -1.0)
 input.nodeset = getnodeset(grid, "nodal_force")
-input.max_iter = 300
+input.max_iter = 1000
 input.tol = 0.01
 input.ν= 0.3
 input.Emin = 1e-9
 input.E0 = 1.0
 
-input.filter_type = :sensitivity_filter
+input.filter_type = :density_filter # :sensitivity_filter # :density_filter
 input.model_type = :dim2d
 input.load_type=:nodal 
 ρ_cells = run_optimization(input)
@@ -141,5 +141,5 @@ function final_figure(F, V, ρ_cells; plot_type=:elements, colormap = :Spectral,
 end
 
 
-f_nodes = final_figure(F, V, ρ_cells; plot_type=:elements, colormap = (:Spectral), strokewidth=0.0, strokecolor=:black)          
+f_nodes = final_figure(F, V, ρ_cells; plot_type=:nodes, colormap = (:Spectral), strokewidth=0.0, strokecolor=:black)          
 

@@ -1,161 +1,212 @@
-"""
-   get_centroid(grid, cell_idx)
-
-computes and returns the centroid of an element
-"""
-# function get_centroid(grid, cell_idx)
-#     node_coordinates = Ferrite.getcoordinates(grid, cell_idx)
-#     centroid = sum(node_coordinates) / length(node_coordinates)
-#     return centroid[1], centroid[2]
-# end
-function get_centroid(grid, cell_idx)
-    # Get the coordinates of all nodes belonging to the cell
-    node_coordinates = Ferrite.getcoordinates(grid, cell_idx)
-    
-    # Calculate the centroid by summing all node coordinates and dividing by the number of nodes.
-    # The result will be a Vec{2} for 2D or Vec{3} for 3D.
-    centroid = sum(node_coordinates) / length(node_coordinates)
-    
-    # Return the full vector/tuple of coordinates, not just the first two.
-    return centroid
+function calculate_raw_weight(distance_ij::Float64, R::Float64)
+    return max(0.0, R - distance_ij)
 end
-"""
-   build_centroid_matrix(grid, n)
 
-computes and returns a matrix for the centroid of an element
-"""
-# function build_centroid_matrix(grid, n)
-#     centroids = Matrix{Float64}(undef, 2, n)
-#     for e in 1:n
-#         x, y = get_centroid(grid, e)
-#         centroids[1, e] = x
-#         centroids[2, e] = y
-#     end
-#     return centroids
-# end
-function build_centroid_matrix(grid, n)
-    # Get the dimension of the grid from the first cell's centroid
-    # This assumes all cells are the same dimension, which is standard.
-    first_centroid = get_centroid(grid, 1)
-    dim = length(first_centroid) # dim will be 2 or 3
-    
-    # Initialize the matrix with the correct number of rows (dim)
-    centroids = Matrix{Float64}(undef, dim, n)
-    
-    for e in 1:n
-        centroid = get_centroid(grid, e)
-        # Assign all components of the centroid vector to the column of the matrix
-        centroids[:, e] = centroid 
+function get_all_element_centroids(grid::Ferrite.AbstractGrid, dh::Ferrite.DofHandler)
+    centroid_data = []
+    for cell_idx in 1:getncells(grid)
+        ferrite_coords = Ferrite.getcoordinates(grid, cell_idx)
+        dim = length(ferrite_coords[1])  # 2 for 2D, 3 for 3D
+        # Compute average for each dimension
+        centroid = tuple([mean(c[d] for c in ferrite_coords) for d in 1:dim]...)
+        push!(centroid_data, centroid)
     end
-    return centroids
+    return centroid_data
 end
-"""
-    create_optimized_sensitivity_filter(grid, n, r_min)
 
-computes and returns neighbors, weights of an element 
-"""
-function create_optimized_sensitivity_filter(grid, n, r_min)
-    # Build spatial index
-    centroids = build_centroid_matrix(grid, n)
-    tree = KDTree(centroids)
-    
-    # Find neighbors and weights using KD-tree
-    neighbors = [Int[] for _ in 1:n]
-    weights = [Float64[] for _ in 1:n]
-    
-    # Bulk search with correct indexing
-    idxs_list = [Int[] for _ in 1:n]
-    for e in 1:n
-        idxs_list[e] = NearestNeighbors.inrange(tree, centroids[:, e], r_min)
+function centroids_to_matrix(centroid_data::Vector, dim::Int, n::Int)
+    matrix = Matrix{Float64}(undef, dim, n)
+    for i in 1:n
+        # Assuming GeoInterface/GeometryOps results are indexable like a vector
+        matrix[:, i] = [centroid_data[i][k] for k in 1:dim]
     end
+    return matrix
+end
+
+
+function calculate_all_cell_volumes(dh::Ferrite.DofHandler, cv::Ferrite.CellValues)
+    element_volumes = Vector{Float64}(undef, getncells(dh.grid))
+    for (cell_idx, cell) in enumerate(Ferrite.CellIterator(dh))
+        Ferrite.reinit!(cv, cell)
+        cell_volume = 0.0
+        for q_point in 1:Ferrite.getnquadpoints(cv)
+            dΩ = Ferrite.getdetJdV(cv, q_point)
+            cell_volume += dΩ
+        end
+        element_volumes[cell_idx] = cell_volume
+    end
+    return element_volumes
+end
+
+
+function create_neighbor_data(centroid_data::Vector, R::Float64)
+    N = length(centroid_data)
+    dim = length(centroid_data[1])
     
-    # Now compute distances and weights
-    for e in 1:n
-        for i in idxs_list[e]
-            dist = norm(centroids[:, e] - centroids[:, i])
-            H_ei = max(0, r_min - dist)
+    centroids_matrix = centroids_to_matrix(centroid_data, dim, N)
+    tree = KDTree(centroids_matrix)
+    neighbor_idxs_list = NearestNeighbors.inrange(tree, centroids_matrix, R)
+    
+    neighbors = [Int[] for _ in 1:N]
+    weights = [Float64[] for _ in 1:N]
+    
+    for e in 1:N
+        centroid_e = centroid_data[e]
+        for i in neighbor_idxs_list[e]
+            centroid_i = centroid_data[i]
+            dist = GeometryOps.distance(centroid_e, centroid_i)
+            H_ei = calculate_raw_weight(dist, R) 
+            
             push!(neighbors[e], i)
             push!(weights[e], H_ei)
         end
     end
-    
     return neighbors, weights
 end
 
-"""
-    apply_sensitivity_filter(dc_raw, x, neighbors, weights, n)
+# --- 1. THE SENSITIVITY FILTER FUNCTION (Optimized) ---
 
-computes and returns the sensitivity filter
-"""
-# function sensitivity_filter(dc_raw, x, neighbors, weights, n)
-#     dc_filtered = zeros(n)
-#     for e in 1:n
-#         denom = x[e] * sum(weights[e])
-#         numer = 0.0
-#         for k in 1:length(neighbors[e])
-#             i = neighbors[e][k]  # neighbor element index
-#             w = weights[e][k]    # weight for this neighbor
-#             numer += w * x[i] * dc_raw[i]
-#         end
-#         dc_filtered[e] = numer / (denom)
-#     end
-#     return dc_filtered
-# end
+function sensitivity_filter(
+    n::Int,
+    x::Vector{Float64},
+    dc_raw::Vector{Float64},
+    v::Vector{Float64},
+    neighbors::Vector{Vector{Int}},
+    weights::Vector{Vector{Float64}}
+)
+    EPSILON = 1e-3 
+    dc_filtered = Vector{Float64}(undef, n)
 
-function sensitivity_filter(dc_raw, x, neighbors, weights, n)
-    dc_filtered = zeros(n)
     for e in 1:n
-        denom = max(1e-3, x[e]) * sum(weights[e])
-        numer = 0.0
+        rho_e = x[e]
+        v_e = v[e]
+
+        numerator_sum = 0.0
+        denominator_sum_w = 0.0
+
         for k in 1:length(neighbors[e])
             i = neighbors[e][k]
-            w = weights[e][k]
-            numer += w * x[i] * dc_raw[i]
+            w_ei = weights[e][k]
+            
+            rho_i = x[i]
+            raw_sensitivity_i = dc_raw[i]
+            v_i = v[i]
+
+            numerator_sum += w_ei * rho_i * (raw_sensitivity_i / v_i)
+            denominator_sum_w += w_ei
         end
-        dc_filtered[e] = numer / denom
+
+        safe_rho_e = max(rho_e, EPSILON)
+        denominator = (safe_rho_e / v_e) * denominator_sum_w
+
+        dc_filtered[e] = denominator == 0.0 ? 0.0 : numerator_sum / denominator
     end
+
     return dc_filtered
 end
 
-###############################################################
-function rho_filter(x, neighbors, weights, n)
-    rho_filtered = zeros(n)
+function density_filter(
+    n::Int,
+    x::Vector{Float64},
+    v::Vector{Float64},
+    neighbors::Vector{Vector{Int}},
+    weights::Vector{Vector{Float64}}
+)
+    filtered_densities = Vector{Float64}(undef, n)
+
     for e in 1:n
-        denom = sum(weights[e])   
-        numer = 0.0  
+        
+        numerator_sum = 0.0
+        denominator_sum = 0.0
+
         for k in 1:length(neighbors[e])
             i = neighbors[e][k]
-            w = weights[e][k]
+            w_ei = weights[e][k]
             
-            numer += w * x[i]
-        end    
-        rho_filtered[e] = numer / denom
-    end
-    return rho_filtered
-end
-###############################################################
-function sensitivity_filter_chainrule(dc_raw, dV_raw, neighbors, weights, n)
-    dc_filtered = zeros(n)
-    dV_filtered = zeros(n)
-    for j in 1:n
-        numer_c = 0.0
-        numer_v = 0.0
-        denom = 0.0
-        for k in 1:length(neighbors[j])
-            e = neighbors[j][k]
-            H_je = weights[j][k]
-
-            numer_c += H_je * dc_raw[e]
-            numer_v += H_je * dV_raw[e]
-            denom += H_je
+            rho_i = x[i]
+            v_i = v[i]
+            
+            weighted_volume = w_ei * v_i
+            
+            numerator_sum += weighted_volume * rho_i
+            
+            denominator_sum += weighted_volume
         end
-        if denom > 0
-            dc_filtered[j] = numer_c / denom
-            dV_filtered[j] = numer_v / denom
+        
+        if denominator_sum == 0.0
+            filtered_densities[e] = x[e]
         else
-            dc_filtered[j] = 0.0
-            dV_filtered[j] = 0.0
+            filtered_densities[e] = numerator_sum / denominator_sum
         end
     end
-    return dc_filtered, dV_filtered
+
+    return filtered_densities
+end
+
+# Use precomputed neighbors::Vector{Vector{Int}} and weights::Vector{Vector{Float64}}
+function calculate_all_volume_constraint_sensitivities(
+    n::Int,
+    element_volumes::Vector{Float64},
+    neighbors::Vector{Vector{Int}},
+    weights::Vector{Vector{Float64}}
+)
+    sensitivities = zeros(Float64, n)
+
+    for e in 1:n
+        v_e = element_volumes[e]
+        total = 0.0
+
+        for (k, i) in enumerate(neighbors[e])
+            H_ei = weights[e][k]
+            v_i = element_volumes[i]
+
+            denom = 0.0
+            for (m, j) in enumerate(neighbors[i])
+                H_ij = weights[i][m]
+                denom += H_ij * element_volumes[j]
+            end
+
+            if denom > 0.0
+                total += v_i * (H_ei * v_e) / denom
+            end
+        end
+
+        sensitivities[e] = total
+    end
+
+    return sensitivities
+end
+
+function calculate_all_filtered_compliance_sensitivities(
+    n::Int,
+    element_volumes::Vector{Float64},
+    raw_compliance_sensitivities::Vector{Float64},
+    neighbors::Vector{Vector{Int}},
+    weights::Vector{Vector{Float64}}
+)
+    sensitivities = zeros(Float64, n)
+
+    for e in 1:n
+        v_e = element_volumes[e]
+        total = 0.0
+
+        for (k, i) in enumerate(neighbors[e])
+            H_ei = weights[e][k]
+            denom = 0.0
+
+            for (m, j) in enumerate(neighbors[i])
+                H_ij = weights[i][m]
+                denom += H_ij * element_volumes[j]
+            end
+
+            if denom > 0.0
+                raw_i = raw_compliance_sensitivities[i]
+                total += raw_i * (H_ei * v_e) / denom
+            end
+        end
+
+        sensitivities[e] = total
+    end
+
+    return sensitivities
 end

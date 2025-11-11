@@ -5,6 +5,14 @@ using NearestNeighbors
 using Printf
 using FIGlet
 using DotMaps
+using GeoInterface
+using GeometryOps
+
+function Jutopia_dir()
+    joinpath(@__DIR__, "..")
+end
+
+export Jutopia_dir
 #------------------------------------------------
 #------stiffness matrix
 export get_material_matrix
@@ -25,13 +33,16 @@ include("fem_functions.jl")
 export compliance_and_sensitivity
 include("sensitivity.jl")
 #------------------------------------------------
-
-export get_centroid
-export build_centroid_matrix
-export create_optimized_sensitivity_filter
+export calculate_raw_weight
+export get_all_element_centroids
+export calculate_all_cell_volumes
+export centroids_to_matrix
+export create_neighbor_data
 export sensitivity_filter
-export rho_filter
-export sensitivity_filter_chainrule
+export density_filter
+export calculate_all_volume_constraint_sensitivities
+export calculate_all_filtered_compliance_sensitivities
+
 include("filter.jl")
 
 #------------------------------------------------
