@@ -131,11 +131,10 @@ function final_figure(F, V, ρ_cells; plot_type=:elements, colormap = :Spectral,
             ax1.title = "Iteration: $i"
         end
     end 
+    # slider2anim(f, hSlider, joinpath(Jutopia_dir(),"assets","temp","tri3_unstructured.gif"); backforth=true, duration=3)
     display(f)
     return f 
 end
 
 ## colormap = (:turbo)
-f_nodes = final_figure(F, V, ρ_cells; plot_type=:nodes, colormap = Reverse(:grays), strokewidth=0.0, strokecolor=:black)
-display(f_nodes)
-
+fig = final_figure(F, V, ρ_cells; plot_type=:nodes, colormap = Reverse(:grays), strokewidth=0.0, strokecolor=:black)

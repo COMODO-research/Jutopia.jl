@@ -90,7 +90,7 @@ Lx, Ly, Lz = 100.0, 100.0, 100.0
 nx, ny, nz = 15, 15, 15
 
 grid = create_grid(Lx, Ly, Lz, nx, ny, nz)
-F, V = FerriteToComodo(grid, Ferrite.Hexahedron)
+E, V = FerriteToComodo(grid, Ferrite.Hexahedron)
 
 create_boundary(grid, Lx, Ly, Lz)
 
@@ -118,7 +118,59 @@ input.model_type = :dim3d
 input.load_type = :traction
 ρ_cells = run_optimization(input)
 
-VTKGridFile("linear_elasticity", input.dh) do vtk
+VTKGridFile(joinpath(Jutopia_dir(),"assets","temp","linear_elasticity"), input.dh) do vtk
     write_cell_data(vtk, ρ_cells[end], "density")
     Ferrite.write_cellset(vtk, grid)
 end
+
+function final_figure(E, V, ρ_cells, plotThreshold = 0.1; plot_type=:elements, colormap = :Spectral, strokewidth=0.0, strokecolor=:black)           
+    C_E = ρ_cells[length(ρ_cells)]
+    
+    B_E = C_E .> plotThreshold
+    F = element2faces(E[B_E])
+    C_F = repeat(C_E[B_E],inner=6)
+
+    if plot_type == :elements 
+        CF = FaceView(C_F, eltype(F).(eachindex(F)))
+        NF = FaceView(facenormal(F,V), eltype(F).(eachindex(F)))
+        M = GeometryBasics.Mesh(V, F, normal=NF, color=CF)
+    elseif plot_type == :nodes
+        CV = simplex2vertexdata(F, C_F,  V; weighting=:size)
+    end
+
+    f = Figure(size = (800, 600))
+    ax1 = AxisGeom(f[1,1])        
+    if plot_type == :elements
+        hm1 = meshplot!(ax1, M; strokewidth=strokewidth, strokecolor=strokecolor, colormap=colormap, colorrange=(0.0, 1.0))
+    elseif plot_type == :nodes    
+        hm1 = meshplot!(ax1, F, V; strokewidth=strokewidth, strokecolor=strokecolor, color=CV, colormap=colormap, colorrange=(0.0, 1.0))
+    end
+    Colorbar(f[1,2], hm1)    
+    
+    hSlider = Slider(f[2,:], range = 1:length(ρ_cells), startvalue = length(ρ_cells), linewidth=30)
+   
+    on(hSlider.value) do i   
+        C_E = ρ_cells[i]
+        B_E = C_E .> plotThreshold
+        F = element2faces(E[B_E])
+        C_F = repeat(C_E[B_E],inner=6)
+        if plot_type == :elements                          
+            CF = FaceView(C_F, eltype(F).(eachindex(F)))
+            NF = FaceView(facenormal(F,V), eltype(F).(eachindex(F)))
+            M = GeometryBasics.Mesh(V, F, normal=NF, color=CF)
+            hm1[1] = M
+            ax1.title = "Iteration: $i"
+        elseif plot_type == :nodes  
+            hm1[1]=GeometryBasics.Mesh(V, F)
+            CV = simplex2vertexdata(F, C_F,  V; weighting=:size)
+            hm1.color = CV
+            ax1.title = "Iteration: $i"
+        end
+    end 
+    # slider2anim(f, hSlider, joinpath(Jutopia_dir(),"assets","temp","temp.gif"); backforth=true, duration=3)
+    display(f)    
+    return f 
+end
+
+plotThreshold = 0.1
+fig = final_figure(E, V, ρ_cells, plotThreshold; plot_type=:elements, colormap = (:turbo), strokewidth=0.0, strokecolor=:black)    

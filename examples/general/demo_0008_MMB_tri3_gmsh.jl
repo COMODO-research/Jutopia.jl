@@ -10,7 +10,7 @@ using FerriteGmsh
 dict = Dict()
 input = DotMap(dict)
 
-fileName_mesh = joinpath(Jutopia_dir(),"assets","fine_rect.msh")
+fileName_mesh = joinpath(Jutopia_dir(),"assets","msh","fine_rect.msh")
 grid = togrid(fileName_mesh)
 addnodeset!(grid, "support_1", x -> x[1] ≈ 0.0) #fixed in x-direction
 addnodeset!(grid, "support_2", x -> x[1] ≈ 2.0 && x[2] ≈ 0.0) # fixed in y direction
@@ -27,6 +27,7 @@ function create_values()
     facet_values = Ferrite.FacetValues(qr_face, ip)
     return cell_values, facet_values
 end
+
 # Function to create DofHandler
 function create_dofhandler(grid)
     dh = Ferrite.DofHandler(grid)
@@ -34,6 +35,7 @@ function create_dofhandler(grid)
     Ferrite.close!(dh)
     return dh
 end
+
 # Function to create Dirichlet boundary conditions
 function create_bc(dh)
     ch = Ferrite.ConstraintHandler(dh)
@@ -42,10 +44,10 @@ function create_bc(dh)
     Ferrite.close!(ch)
     return ch
 end
+
 input.grid = grid
 input.dh = create_dofhandler(grid)
 input.ch = create_bc(input.dh)
-
 
 input.cv, _ = create_values() # cv: cell_values
 input.volfrac = 0.5
@@ -101,9 +103,9 @@ function final_figure(F, V, ρ_cells; plot_type=:elements, colormap = :Spectral,
             ax1.title = "Iteration: $i"
         end
     end 
+    # slider2anim(f, hSlider, joinpath(Jutopia_dir(),"assets","temp","tri3.gif"); backforth=true, duration=3)
     display(f)
     return f 
 end
 
-## colormap = (:turbo)
-f_nodes = final_figure(F, V, ρ_cells; plot_type=:nodes, colormap = Reverse(:grays), strokewidth=0.0, strokecolor=:black)
+fig = final_figure(F, V, ρ_cells; plot_type=:nodes, colormap = Reverse(:grays), strokewidth=0.0, strokecolor=:black)

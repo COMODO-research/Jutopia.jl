@@ -87,8 +87,8 @@ function run_optimization(input::DotMap)
         println("Iteration $loop, Compliance: $c, Change: $change")
         println("----------------------------------------")
     end
-    FIGlet.render("This Is Jutopia", "Standard")
-    FIGlet.render("Optimization Successful", "Standard")
+    # FIGlet.render("This Is Jutopia", "Standard")
+    # FIGlet.render("Optimization Successful", "Standard")
 
     return xPhys_cells
 end
