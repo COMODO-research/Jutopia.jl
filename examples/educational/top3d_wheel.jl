@@ -1,8 +1,8 @@
 using LinearAlgebra
 using Statistics
 using SparseArrays
-using GLMakie
 using Comodo
+using Comodo.GLMakie
 using Comodo.GeometryBasics
 
 #3D FEA analysis
@@ -209,11 +209,12 @@ end
 nelx = 80
 nely = 40
 nelz = 80
+
 volfrac = 0.2
 penal = 3
 rmin = 3.0
 
-boxEl = (nely,nelx,nelz)
+boxEl = [nely,nelx,nelz]
 E,V,_,_,_ = hexbox(boxEl,boxEl)
 
 xPhs,loop = top_opt_3d(nelx,nely,nelz, volfrac,penal, rmin)
