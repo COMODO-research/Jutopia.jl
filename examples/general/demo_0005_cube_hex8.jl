@@ -31,11 +31,11 @@ end
 # Function to define boundary conditions and nodesets
 function create_boundary(grid, Lx, Ly, Lz)
     # Parameters for the circle on the top surface
-    r_top = 25.0
+    r_top = 0.20
     cx_top, cy_top = Lx / 2, Ly / 2
 
     # Parameters for the circles on the bottom surface
-    r_bottom = 10.0
+    r_bottom = 0.1
 
     # Define the bottom corner centers
     corner_centers = [
@@ -86,7 +86,7 @@ function create_bc(dh, grid)
     return ch
 end
 
-Lx, Ly, Lz = 100.0, 100.0, 100.0
+Lx, Ly, Lz = 1.0, 1.0, 1.0
 nx, ny, nz = 15, 15, 15
 
 grid = create_grid(Lx, Ly, Lz, nx, ny, nz)
@@ -103,10 +103,20 @@ input.cv, input.fv = create_values()
 input.volfrac = 0.5
 input.penalty = 3.0
 
-input.rmin = 0.05
+# Calculate element size and rmin
+element_size_x = Lx / nx
+element_size_y = Ly / ny 
+element_size_z = Lz / nz
+avg_element_size = (element_size_x + element_size_y + element_size_z) / 3
+
+# Choose rmin based on element size (typical range: 1.5-3.0 times element size)
+input.rmin = 2.0 * avg_element_size
+
+
+# input.rmin = 0.1
 
 input.traction_vector = (0.0, 0.0, 1.0)
-input.facetset = getfacetset(grid, "top")
+input.facetset = getfacetset(grid, "top_circle")
 input.max_iter = 200
 input.tol = 0.01
 input.ν = 0.3
@@ -173,4 +183,4 @@ function final_figure(E, V, ρ_cells, plotThreshold = 0.1; plot_type=:elements, 
 end
 
 plotThreshold = 0.1
-fig = final_figure(E, V, ρ_cells, plotThreshold; plot_type=:elements, colormap = (:turbo), strokewidth=0.0, strokecolor=:black)    
+fig = final_figure(E, V, ρ_cells, plotThreshold; plot_type=:nodes, colormap = (:turbo), strokewidth=0.0, strokecolor=:black)    
