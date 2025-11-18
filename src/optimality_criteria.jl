@@ -4,6 +4,8 @@ function optimality_criteria(x, volfrac, dc, dv, element_volumes, filter_type, n
     l1 = 0.0
     l2 = 1e9
     move = 0.2
+    # maybe we can use a degrading function instead of hard coding the move=0.2
+    # for example, move =0.2 * exp(-beta/50), where beta is a damping value
     total_volume = sum(element_volumes)
     xnew = copy(x)
     xPhys = copy(x)  # ✅ Ensure xPhys is always defined
