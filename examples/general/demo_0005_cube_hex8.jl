@@ -90,7 +90,7 @@ Lx, Ly, Lz = 1.0, 1.0, 1.0
 nx, ny, nz = 15, 15, 15
 
 grid = create_grid(Lx, Ly, Lz, nx, ny, nz)
-E, V = FerriteToComodo(grid, Ferrite.Hexahedron)
+E, V = FerriteToComodo(grid)
 
 create_boundary(grid, Lx, Ly, Lz)
 

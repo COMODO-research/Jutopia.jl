@@ -15,7 +15,7 @@ grid = togrid(fileName_mesh)
 addnodeset!(grid, "support_1", x -> x[1] ≈ 0.0) #fixed in x-direction
 addnodeset!(grid, "support_2", x -> x[1] ≈ 2.0 && x[2] ≈ 0.0) # fixed in y direction
 addnodeset!(grid, "nodal_force", x -> x[1] ≈ 0.0 && x[2] ≈ 1.0) # nodal_force
-F, V = FerriteToComodo(grid, Ferrite.Triangle)
+F, V = FerriteToComodo(grid)
 
 # Function to create CellValues and FacetValues
 function create_values()

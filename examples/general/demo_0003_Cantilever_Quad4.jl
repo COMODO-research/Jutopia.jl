@@ -46,7 +46,7 @@ end
 Lx, Ly = 2.0, 1.0  # Plate dimensions
 nx, ny = 120, 60   # Number of elements along x and y
 grid = create_grid(Lx, Ly, nx, ny)  # Generate the grid
-F, V = FerriteToComodo(grid, Ferrite.Quadrilateral)
+F, V = FerriteToComodo(grid)
 
 M = GeometryBasics.Mesh(V, F)
 fig = Figure(size=(800, 600))
@@ -55,11 +55,11 @@ xlims!(ax, -0.5, 2.5)
 ylims!(ax, -0.5, 1.5)
 poly!(ax, M, color=(Gray(0.95), 0.3), strokecolor=:black, strokewidth=1, shading=true, transparency=false)
 
-faceset1 = get_boundary_points(grid, getfacetset(grid, "traction"), Faces, Ferrite.Quadrilateral)
-scatter!(ax, faceset1, color=:blue, markersize=15.0, marker=:circle, strokecolor=:black, strokewidth=2, label="traction")
+faceset1 = get_boundary_points(grid, getfacetset(grid, "traction"))
+scatter!(ax, faceset1, color=:blue, markersize=15.0, marker=:circle,label="traction")
 
-nodeset2 = get_boundary_points(grid, getnodeset(grid, "clamped"), Nodes, Ferrite.Quadrilateral)
-scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon, strokecolor=:black, strokewidth=2, label="Fixed XY")
+nodeset2 = get_boundary_points(grid, getnodeset(grid, "clamped"))
+scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon,label="Fixed XY")
 
 
 axislegend(ax, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)

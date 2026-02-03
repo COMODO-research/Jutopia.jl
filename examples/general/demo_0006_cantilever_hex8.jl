@@ -63,7 +63,7 @@ Lx, Ly, Lz = 30.0, 2.0, 10.0
 nx, ny, nz = 50, 10, 20
 
 grid = create_grid(Lx, Ly, Lz, nx, ny, nz)
-E, V = FerriteToComodo(grid, Ferrite.Hexahedron)
+E, V = FerriteToComodo(grid)
 
 input.grid = grid
 input.dh = create_dofhandler(grid)

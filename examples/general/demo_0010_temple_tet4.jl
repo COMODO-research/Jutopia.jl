@@ -87,33 +87,31 @@ nx, ny, nz = 15, 15, 15
 grid = create_grid(Lx, Ly, Lz, nx, ny, nz)
 create_boundary(grid, Lx, Ly, Lz)
 # Convert to Comodo mesh
-E, V, F, Fb, CFb_type = FerriteToComodo(grid, Ferrite.Tetrahedron)
+E, V, F, Fb, CFb_type = FerriteToComodo(grid)
 M = GeometryBasics.Mesh(V, F, normal=face_normals(V, F))
 Mb = GeometryBasics.Mesh(V, Fb, normal=face_normals(V, Fb))
 
 # Plot
 fig_mesh = Figure(size=(1200, 800))
 
-ax1 = AxisGeom(fig_mesh[1, 1], title="Hex8 mesh", azimuth=-0.2π, elevation=0.1π)
+ax1 = AxisGeom(fig_mesh[1, 1], title="Tet4 mesh")
 meshplot!(ax1, M, color=:gray, strokecolor=:black, strokewidth=3.0, shading=false, transparency=false)
 
-ax2 = AxisGeom(fig_mesh[1, 2], title="Boundary condition", azimuth=-0.2π, elevation=0.1π)
+ax2 = AxisGeom(fig_mesh[1, 2], title="Boundary condition")
 meshplot!(ax2, Mb, color=(Gray(0.95), 0.3), strokecolor=:black, strokewidth=2.0, shading=true, transparency=true)
 
 # Top rectangle nodes
-facesset_top = get_boundary_points(grid, getfacetset(grid, "top_rectangle"), Faces, Ferrite.Tetrahedron)
-scatter!(ax2, facesset_top, color=:red, markersize=15.0, marker=:circle, strokecolor=:black, strokewidth=2, label="Top rectangle")
+facesset_top = get_boundary_points(grid, getfacetset(grid, "top_rectangle"))
+scatter!(ax2, facesset_top, color=:red, markersize=15.0, marker=:circle,label="Top rectangle")
 
 # Bottom edge-center nodes
 for i in 1:4
-    bottom_nodes = get_boundary_points(grid, getnodeset(grid, "bottom_edge_center_$i"), Nodes, Ferrite.Hexahedron)
-    scatter!(ax2, bottom_nodes, color=:blue, markersize=15.0, marker=:circle, strokecolor=:black, strokewidth=2, label="Bottom edge center $i")
+    bottom_nodes = get_boundary_points(grid, getnodeset(grid, "bottom_edge_center_$i"))
+    scatter!(ax2, bottom_nodes, color=:blue, markersize=15.0, marker=:circle,label="Bottom edge center $i")
 end
 
 axislegend(ax2, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)
 display(fig_mesh)
-
-
 
 input.grid = grid
 input.dh = create_dofhandler(grid)
@@ -147,10 +145,10 @@ input.model_type = :dim3d
 input.load_type = :traction
 ρ_cells = run_optimization(input)
 
-VTKGridFile("/Users/aminalibakhshi/Desktop/vtu_results/amin.vtu", input.dh) do vtk
-    write_cell_data(vtk, ρ_cells[end], "density")
-    Ferrite.write_cellset(vtk, grid)
-end
+# VTKGridFile("/Users/aminalibakhshi/Desktop/vtu_results/amin.vtu", input.dh) do vtk
+#     write_cell_data(vtk, ρ_cells[end], "density")
+#     Ferrite.write_cellset(vtk, grid)
+# end
 
 
 function final_figure(E, V, ρ_cells, plotThreshold = 0.1; plot_type=:elements, colormap = :Spectral, strokewidth=0.0, strokecolor=:black)           

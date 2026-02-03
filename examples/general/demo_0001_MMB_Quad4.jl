@@ -54,7 +54,7 @@ end
 Lx, Ly = 2.0, 1.0  # Plate dimensions
 nx, ny = 80, 40   # Number of elements along x and y
 grid = create_grid(Lx, Ly, nx, ny)  # Generate the grid
-F, V = FerriteToComodo(grid, Ferrite.Quadrilateral)
+F, V = FerriteToComodo(grid)
 
 M = GeometryBasics.Mesh(V, F)
 fig = Figure(size=(800, 600))
@@ -63,14 +63,14 @@ xlims!(ax, -0.5, 2.5)
 ylims!(ax, -0.5, 1.5)
 poly!(ax, M, color=(Gray(0.95), 0.3), strokecolor=:black, strokewidth=1, shading=true, transparency=false)
 
-nodeset1 = get_boundary_points(grid, getnodeset(grid, "nodal_force"), Nodes, Ferrite.Quadrilateral)
-scatter!(ax, nodeset1, color=:blue, markersize=20.0, marker=:circle, strokecolor=:black, strokewidth=2, label="nodal force")
+nodeset1 = get_boundary_points(grid, getnodeset(grid, "nodal_force"))
+scatter!(ax, nodeset1, color=:blue, markersize=20.0, marker=:circle,label="nodal force")
 
-nodeset2 = get_boundary_points(grid, getnodeset(grid, "support_1"), Nodes, Ferrite.Quadrilateral)
-scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon, strokecolor=:black, strokewidth=2, label="Fixed X")
+nodeset2 = get_boundary_points(grid, getnodeset(grid, "support_1"))
+scatter!(ax, nodeset2, color=:red, markersize=8.0, marker=:hexagon, label="Fixed X")
 
-nodeset3 = get_boundary_points(grid, getnodeset(grid, "support_2"), Nodes, Ferrite.Quadrilateral)
-scatter!(ax, nodeset3, color=:green, markersize=15.0, marker=:diamond, strokecolor=:black, strokewidth=2, label="Fixed Y")
+nodeset3 = get_boundary_points(grid, getnodeset(grid, "support_2"))
+scatter!(ax, nodeset3, color=:green, markersize=15.0, marker=:diamond,label="Fixed Y")
 
 axislegend(ax, position=:rb, backgroundcolor=(:white, 0.7), framecolor=:gray)
 display(GLMakie.Screen(), fig)
